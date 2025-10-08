@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import sunpy.map
 import sunkit_image.radial as radial
 from sunkit_image.utils import equally_spaced_bins
@@ -11,6 +12,7 @@ from astropy.visualization import AsymmetricPercentileInterval, ImageNormalize, 
 import glob
 import os
 from aspiicspy.generate_colormap import generate_colormap
+
 
 def cut_occulter_sunpy(map, r=1.17):
     suncenter_pix = [map.meta['x_io'] -1, map.meta['y_io']-1]# Use IO center rather than sun center
@@ -60,7 +62,7 @@ def read_aspiics_sunpy(filename, filter, exptime, occulter=True, rotate=True, in
 
         return image_sunpy
     
-def plot_image(aspiics_map, bottom_left = 'default', top_right = 'default',image_dir=None, return_map = False):
+def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = None, return_map = False):
     if 'Polarizer' in aspiics_map.meta['filter']:
         cmap = 'ASPIICS pB'
     else:
@@ -68,29 +70,30 @@ def plot_image(aspiics_map, bottom_left = 'default', top_right = 'default',image
     
     exptime = np.round(aspiics_map.meta['exptime'], decimals=2)
 
-    if bottom_left == 'default':
+    if bottom_left is None:
         bl = SkyCoord(-3000*u.arcsec, -3000*u.arcsec, frame=aspiics_map.coordinate_frame)
     else:
         bl = bottom_left
-    if top_right == 'default':
+    if top_right is None:
         tr = SkyCoord(3000*u.arcsec, 3000*u.arcsec, frame=aspiics_map.coordinate_frame)
     else:
         tr = top_right
     
     aspiics_map = aspiics_map.submap(bl, top_right=tr)
 
-    fig = plt.figure(figsize=(10,10))
-    ax = fig.add_subplot(projection=aspiics_map)
-    aspiics_map.plot(axes=ax, cmap=cmap)
-    aspiics_map.draw_limb()
-    ax.set_title(aspiics_map.latex_name+ f' Exposure = {exptime} s')
-    # ax.axis('off')
-    if image_dir is not None:
-        os.makedirs(image_dir, exist_ok=True)
-        if exptime >= 1:
-            exptime = int(exptime)
-        fig.savefig(image_dir+f'{aspiics_map.meta['filename'].split('.')[0]}_{str(exptime).replace('.','')}s.png', dpi=200, bbox_inches='tight')
-        plt.close()
+    with mpl.rc_context({'font.size':14}):
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(projection=aspiics_map)
+        aspiics_map.plot(axes=ax, cmap=cmap)
+        aspiics_map.draw_limb()
+        ax.set_title(aspiics_map.latex_name+ f' Exposure = {exptime} s')
+        # ax.axis('off')
+        if image_dir is not None:
+            os.makedirs(image_dir, exist_ok=True)
+            if exptime >= 1:
+                exptime = int(exptime)
+            fig.savefig(image_dir+f'{aspiics_map.meta['filename'].split('.')[0]}_{str(exptime).replace('.','')}s.png', dpi=200, bbox_inches='tight')
+            plt.close()
     if return_map == True:
         return aspiics_map
 
@@ -108,7 +111,7 @@ if __name__ == '__main__':
     for filename in filename_list:
         print('Plotting ASPIICS map:', filename)
         aspiics_map = read_aspiics_sunpy(filename, filter, exptime, enhance_method=enhance_method)
-        plot_image(aspiics_map, image_dir)
+        plot_image(aspiics_map, image_dir=image_dir)
     
 
  
