@@ -10,7 +10,7 @@ from astropy.coordinates import SkyCoord
 from astropy.visualization import AsymmetricPercentileInterval, ImageNormalize, LinearStretch, SqrtStretch
 import glob
 import os
-from generate_colormap import generate_colormap
+from aspiicspy.generate_colormap import generate_colormap
 
 def cut_occulter_sunpy(map, r=1.17):
     suncenter_pix = [map.meta['x_io'] -1, map.meta['y_io']-1]# Use IO center rather than sun center
@@ -60,7 +60,7 @@ def read_aspiics_sunpy(filename, filter, exptime, occulter=True, rotate=True, in
 
         return image_sunpy
     
-def plot_image(aspiics_map, image_dir=None):
+def plot_image(aspiics_map, bottom_left = 'default', top_right = 'default',image_dir=None, return_map = False):
     if 'Polarizer' in aspiics_map.meta['filter']:
         cmap = 'ASPIICS pB'
     else:
@@ -68,8 +68,15 @@ def plot_image(aspiics_map, image_dir=None):
     
     exptime = np.round(aspiics_map.meta['exptime'], decimals=2)
 
-    bl = SkyCoord(-3000*u.arcsec, -3000*u.arcsec, frame=aspiics_map.coordinate_frame)
-    tr = SkyCoord(3000*u.arcsec, 3000*u.arcsec, frame=aspiics_map.coordinate_frame)
+    if bottom_left == 'default':
+        bl = SkyCoord(-3000*u.arcsec, -3000*u.arcsec, frame=aspiics_map.coordinate_frame)
+    else:
+        bl = bottom_left
+    if top_right == 'default':
+        tr = SkyCoord(3000*u.arcsec, 3000*u.arcsec, frame=aspiics_map.coordinate_frame)
+    else:
+        tr = top_right
+    
     aspiics_map = aspiics_map.submap(bl, top_right=tr)
 
     fig = plt.figure(figsize=(10,10))
@@ -83,7 +90,10 @@ def plot_image(aspiics_map, image_dir=None):
         if exptime >= 1:
             exptime = int(exptime)
         fig.savefig(image_dir+f'{aspiics_map.meta['filename'].split('.')[0]}_{str(exptime).replace('.','')}s.png', dpi=200, bbox_inches='tight')
-    plt.close()
+        plt.close()
+    if return_map == True:
+        return aspiics_map
+
     
 if __name__ == '__main__':
     print('running read_L2 as script')
