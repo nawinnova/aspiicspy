@@ -7,12 +7,37 @@ from sunkit_image.utils import equally_spaced_bins
 import sunkit_image.enhance as enhance
 from astropy.io import fits
 import astropy.units as u
+from astropy.time import Time
 from astropy.coordinates import SkyCoord
 from astropy.visualization import AsymmetricPercentileInterval, ImageNormalize, LinearStretch, SqrtStretch
 import glob
 import os
 from aspiicspy.generate_colormap import generate_colormap
 
+def query_condition(filename_input, filter=None, exptime=None, start_time=None, end_time=None):
+    filename_list = filename_input[:]
+    if start_time is None:
+        start_time = Time('1970-01-01T00:00:00')
+    if end_time is None:
+        end_time = Time('2100-01-01T00:00:00')
+    print(start_time, end_time)
+    for i, file in enumerate(filename_list):
+        header = fits.getheader(file)
+        # filetime = Time(header['date-obs'])
+        # filefilter =  header['filter']
+        # fileexp = np.round(header['exptime'], decimals=2)
+        if Time(header['date-obs']) < start_time or Time(header['date-obs']) > end_time:
+            filename_list[i] = None
+        elif filter is not None and header['filter'] != filter:
+            filename_list[i] = None 
+        elif exptime is not None and np.round(header['exptime'], decimals=2) != np.float64(exptime):
+            filename_list[i] = None
+        del header
+    
+    filename_list = [f for f in filename_list if f is not None]
+    
+    return filename_list
+            
 
 def cut_occulter_sunpy(map, r=1.17):
     suncenter_pix = [map.meta['x_io'] -1, map.meta['y_io']-1]# Use IO center rather than sun center
@@ -23,44 +48,43 @@ def cut_occulter_sunpy(map, r=1.17):
     dist_suncen = np.sqrt((xx - suncenter_pix[0])**2 + (yy - suncenter_pix[1])**2)
     map.data[dist_suncen < r*rsun_pix] = np.nan #nan pixel inside occulter
 
-def read_aspiics_sunpy(filename, filter, exptime, occulter=True, rotate=True, inf_value= 'max', enhance_method=False):
+def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', enhance_method=False):
     with fits.open(filename, do_not_scale_image_data=True) as hdul:             
        imagedata = hdul[0].data
        header    = hdul[0].header
 
-    if header['filter'] != filter or np.round(header['exptime'], decimals=2) != np.float64(exptime):
-        pass
-    else:
-        if inf_value == 'max':
-            inf_value = np.max(imagedata[np.isfinite(imagedata)])
-        imagedata[~np.isfinite(imagedata)] = inf_value
-        fits_data = imagedata
-        if enhance_method == 'WOW':
-            denoise_coefficients = [5,2,1]
-            gamma = 4
-            fits_data = enhance.wow(fits_data, bilateral=1, denoise_coefficients=denoise_coefficients, gamma=gamma, h=0) 
-        if enhance_method == 'MGN':
-            fits_data = enhance.mgn(fits_data) # need to explore further
+    if inf_value == 'max':
+        inf_value = np.max(imagedata[np.isfinite(imagedata)])
     
-        image_sunpy = sunpy.map.Map(fits_data, header) # register to sunpy to handle coordinate stuff
-        if occulter == True:
-            cut_occulter_sunpy(image_sunpy, r=1.17) # use auxillary function to remove values from inside occulter (default r=1.17 rsun at 0% vignetting), as well as bad pixel
-            # see SOC doc for vignetting
-        if rotate == True:
-            image_sunpy = image_sunpy.rotate() # rotate to solar north = up
+    imagedata[~np.isfinite(imagedata)] = inf_value
+    
+    fits_data = imagedata
+    if enhance_method == 'WOW':
+        denoise_coefficients = [5,2,1]
+        gamma = 4
+        fits_data = enhance.wow(fits_data, bilateral=1, denoise_coefficients=denoise_coefficients, gamma=gamma, h=0) 
+    if enhance_method == 'MGN':
+        fits_data = enhance.mgn(fits_data) # need to explore further
 
-        if enhance_method == 'NRGF':
-            FOV_low = 1.17
-            FOV_high = 3
-            radial_bin_edges = equally_spaced_bins(FOV_low, FOV_high, nbins=100)*u.R_sun
-            image_sunpy = radial.nrgf(image_sunpy[0], radial_bin_edges=radial_bin_edges, width_function = np.nanstd)
+    image_sunpy = sunpy.map.Map(fits_data, header) # register to sunpy to handle coordinate stuff
+    if occulter == True:
+        cut_occulter_sunpy(image_sunpy, r=1.17) # use auxillary function to remove values from inside occulter (default r=1.17 rsun at 0% vignetting), as well as bad pixel
+        # see SOC doc for vignetting
+    if rotate == True:
+        image_sunpy = image_sunpy.rotate() # rotate to solar north = up
 
-        if enhance_method != False:
-            image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=LinearStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
-        else:
-            image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=SqrtStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
+    if enhance_method == 'NRGF':
+        FOV_low = 1.17
+        FOV_high = 3
+        radial_bin_edges = equally_spaced_bins(FOV_low, FOV_high, nbins=100)*u.R_sun
+        image_sunpy = radial.nrgf(image_sunpy[0], radial_bin_edges=radial_bin_edges, width_function = np.nanstd)
 
-        return image_sunpy
+    if enhance_method != False:
+        image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=LinearStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
+    else:
+        image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=SqrtStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
+
+    return image_sunpy
     
 def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = None, return_map = False):
     if 'Polarizer' in aspiics_map.meta['filter']:
@@ -70,16 +94,10 @@ def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = No
     
     exptime = np.round(aspiics_map.meta['exptime'], decimals=2)
 
-    if bottom_left is None:
-        bl = SkyCoord(-3000*u.arcsec, -3000*u.arcsec, frame=aspiics_map.coordinate_frame)
-    else:
+    if bottom_left is not None and top_right is not None:
         bl = bottom_left
-    if top_right is None:
-        tr = SkyCoord(3000*u.arcsec, 3000*u.arcsec, frame=aspiics_map.coordinate_frame)
-    else:
         tr = top_right
-    
-    aspiics_map = aspiics_map.submap(bl, top_right=tr)
+        aspiics_map = aspiics_map.submap(bl, top_right=tr)
 
     with mpl.rc_context({'font.size':14}):
         fig = plt.figure(figsize=(10,10))
@@ -108,9 +126,11 @@ if __name__ == '__main__':
     image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/'
     enhance_method = False
 
+    filename_list = query_condition(filename_list, filter, exptime)
+
     for filename in filename_list:
         print('Plotting ASPIICS map:', filename)
-        aspiics_map = read_aspiics_sunpy(filename, filter, exptime, enhance_method=enhance_method)
+        aspiics_map = read_aspiics_sunpy(filename, enhance_method=enhance_method)
         plot_image(aspiics_map, image_dir=image_dir)
     
 
