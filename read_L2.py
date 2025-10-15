@@ -12,7 +12,9 @@ from astropy.coordinates import SkyCoord
 from astropy.visualization import AsymmetricPercentileInterval, ImageNormalize, LinearStretch, SqrtStretch
 import glob
 import os
-from aspiicspy.generate_colormap import generate_colormap
+import warnings
+warnings.simplefilter('ignore')
+# from aspiicspy.generate_colormap import generate_colormap
 
 def query_condition(filename_input, filter=None, exptime=None, start_time=None, end_time=None):
     filename_list = filename_input[:]
@@ -20,9 +22,9 @@ def query_condition(filename_input, filter=None, exptime=None, start_time=None, 
         start_time = Time('1970-01-01T00:00:00')
     if end_time is None:
         end_time = Time('2100-01-01T00:00:00')
-    print(start_time, end_time)
+    # print(start_time, end_time)
     for i, file in enumerate(filename_list):
-        header = fits.getheader(file)
+        header = fits.getheader(file, -1)
         # filetime = Time(header['date-obs'])
         # filefilter =  header['filter']
         # fileexp = np.round(header['exptime'], decimals=2)
@@ -50,14 +52,16 @@ def cut_occulter_sunpy(map, r=1.17):
 
 def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', enhance_method=False):
     with fits.open(filename, do_not_scale_image_data=True) as hdul:             
-       imagedata = hdul[0].data
-       header    = hdul[0].header
+       imagedata = np.array(hdul[-1].data, dtype="<f4")
+       header    = hdul[-1].header  
 
     if inf_value == 'max':
         inf_value = np.max(imagedata[np.isfinite(imagedata)])
+        # inf_value = np.nanmax(imagedata)
     
     imagedata[~np.isfinite(imagedata)] = inf_value
-    
+    # imagedata[np.isnan(imagedata)] = inf_value
+
     fits_data = imagedata
     if enhance_method == 'WOW':
         denoise_coefficients = [5,2,1]
@@ -78,12 +82,13 @@ def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', e
         FOV_high = 3
         radial_bin_edges = equally_spaced_bins(FOV_low, FOV_high, nbins=100)*u.R_sun
         image_sunpy = radial.nrgf(image_sunpy[0], radial_bin_edges=radial_bin_edges, width_function = np.nanstd)
+    # isnotnan = np.logical_not(np.isnan(image_sunpy.data))
+    # breakpoint()
 
     if enhance_method != False:
         image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=LinearStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
     else:
         image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=SqrtStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
-
     return image_sunpy
     
 def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = None, return_map = False):
@@ -115,23 +120,34 @@ def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = No
     if return_map == True:
         return aspiics_map
 
-    
 if __name__ == '__main__':
     print('running read_L2 as script')
+    from generate_colormap import generate_colormap
     generate_colormap()
-    datafolder = '/Users/ngampoopun/Desktop/ASPIICS_stuff/WB_fits_file/exp1s/'
+    # datafolder = '/Users/ngampoopun/Desktop/ASPIICS_stuff/WB_fits_file/exp1s/'
+    datafolder = '/Users/ngampoopun/Desktop/ASPIICS_stuff/lvl2_1_jitter_remap_3/'
     filename_list = sorted(glob.glob(datafolder+'*_l2_*.fits')) # only select l2 data!!
     filter = 'Wideband'
     exptime = 1
-    image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/'
-    enhance_method = False
+    # image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/center_LED_JC_new_remap/'
+    image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/fullmap_JCcorrect_remap/'
+    enhance_method = 'WOW'
 
     filename_list = query_condition(filename_list, filter, exptime)
 
     for filename in filename_list:
         print('Plotting ASPIICS map:', filename)
-        aspiics_map = read_aspiics_sunpy(filename, enhance_method=enhance_method)
-        plot_image(aspiics_map, image_dir=image_dir)
+        aspiics_map = read_aspiics_sunpy(filename, occulter=False, rotate=False, enhance_method=enhance_method)
+        # print(f'CRVAL1:{aspiics_map.meta['CRVAL1']} , CRVAL2:{aspiics_map.meta['CRVAL2']}')
+        ### No cropping just pure image
+        bl, tr = None, None
+        ### LED position
+        # bl = SkyCoord(-500*u.arcsec, -500*u.arcsec, frame = aspiics_map.coordinate_frame)
+        # tr = SkyCoord(500*u.arcsec, 500*u.arcsec, frame = aspiics_map.coordinate_frame)
+        ##### Plume position
+        # bl = SkyCoord(-500*u.arcsec, -1500*u.arcsec, frame = aspiics_map.coordinate_frame)
+        # tr = SkyCoord(500*u.arcsec, -900*u.arcsec, frame = aspiics_map.coordinate_frame)
+        plot_image(aspiics_map, bottom_left=bl, top_right=tr, image_dir=image_dir)
     
 
  
