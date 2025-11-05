@@ -50,7 +50,7 @@ def cut_occulter_sunpy(map, r=1.17):
     dist_suncen = np.sqrt((xx - suncenter_pix[0])**2 + (yy - suncenter_pix[1])**2)
     map.data[dist_suncen < r*rsun_pix] = np.nan #nan pixel inside occulter
 
-def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', enhance_method=False):
+def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', enhance_method=False, savedir=None):
     with fits.open(filename, do_not_scale_image_data=True) as hdul:             
        imagedata = np.array(hdul[-1].data, dtype="<f4")
        header    = hdul[-1].header  
@@ -82,13 +82,18 @@ def read_aspiics_sunpy(filename, occulter=True, rotate=True, inf_value= 'max', e
         FOV_high = 3
         radial_bin_edges = equally_spaced_bins(FOV_low, FOV_high, nbins=100)*u.R_sun
         image_sunpy = radial.nrgf(image_sunpy[0], radial_bin_edges=radial_bin_edges, width_function = np.nanstd)
-    # isnotnan = np.logical_not(np.isnan(image_sunpy.data))
-    # breakpoint()
 
     if enhance_method != False:
         image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=LinearStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
     else:
         image_sunpy.plot_settings['norm'] = ImageNormalize(image_sunpy.data, stretch=SqrtStretch(), interval = AsymmetricPercentileInterval(1, 99.9))
+    if savedir is not None:
+        os.makedirs(savedir, exist_ok=True)
+        exptime = np.round(image_sunpy.meta['exptime'], decimals=2)
+        if exptime >= 1:
+            exptime = int(exptime)
+        image_sunpy.save(savedir+f'{image_sunpy.meta["filename"].split(".")[0]}_{str(exptime).replace(".","")}s.fits')
+
     return image_sunpy
     
 def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = None, return_map = False):
