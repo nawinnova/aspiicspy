@@ -10,6 +10,7 @@ from pathlib import Path
 Might try to migrate this into sunpy mainpackage instead???
 '''
 def generate_colormap():
+    mycwd = os.getcwd()
     os.chdir(Path(__file__).resolve().parent)
     os.makedirs('./cmap_file', exist_ok=True)
     cmap_filelist_num = len(glob.glob('./cmap_file/*.txt'))
@@ -43,6 +44,8 @@ def generate_colormap():
     ne_cmap = LinearSegmentedColormap.from_list('ASPIICS ne', ne_reffile)
     ne_cmap.set_bad(color='tab:grey')
     mpl.colormaps.register(cmap=ne_cmap)
+
+    os.chdir(mycwd) 
 
 if __name__ == "__main__":
     generate_colormap()
