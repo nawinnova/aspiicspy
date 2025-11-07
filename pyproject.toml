@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aspiicspy"
+dynamic = ["version"]
+dependencies = [
+    "numpy>=2.2.6",
+    "matplotlib>=3.10.0",
+    "astropy>=7.1.0",
+    "sunpy>=7.0.1",
+    "sunkit-image>=0.6.1",
+    "opencv-python>=4.12.0.88",
+    "watroo>=0.0.4"
+    ]
+
+
+authors = [
+  { name="Nawin Ngampoopun", email="ngampoopun@mps.mpg.de" },
+]
+description = "A python package to help analyse PROBA-3/ASPIICS coronagraph data"
+readme = "README.md"
+
+
+requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/nawinnova/aspiicspy"
+Issues = "https://github.com/nawinnova/aspiicspy/issues"
