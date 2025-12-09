@@ -14,7 +14,7 @@ import glob
 import os
 import warnings
 warnings.simplefilter('ignore')
-# from aspiicspy.generate_colormap import generate_colormap
+from aspiicspy.generate_colormap import generate_colormap
 
 def query_condition(filename_input, filter=None, exptime=None, start_time=None, end_time=None):
     """
@@ -55,6 +55,8 @@ def query_condition(filename_input, filter=None, exptime=None, start_time=None, 
         del header
     
     filename_list = [f for f in filename_list if f is not None]
+    # sorted by date-obs
+    filename_list = sorted(filename_list, key=lambda x: Time(fits.getheader(x, -1)['date-obs']))
     
     return filename_list
             
@@ -188,31 +190,30 @@ def plot_image(aspiics_map, bottom_left = None, top_right = None, image_dir = No
 
 if __name__ == '__main__':
     print('running read_L2 as script')
-    from generate_colormap import generate_colormap
     generate_colormap()
-    # datafolder = '/Users/ngampoopun/Desktop/ASPIICS_stuff/WB_fits_file/exp1s/'
-    datafolder = '/Users/ngampoopun/Desktop/ASPIICS_stuff/lvl2_1_jitter_remap_3/'
+    ## define data folder and get filename list
+    datafolder = '/Users/ngampoopun/Desktop/Code/P3SC_L2_20251209_141554/'
+    ## get filename list (l2 only)
     filename_list = sorted(glob.glob(datafolder+'*_l2_*.fits')) # only select l2 data!!
-    filter = 'Wideband'
-    exptime = 1
-    # image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/center_LED_JC_new_remap/'
-    image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/Jet_WB_1s/fullmap_JCcorrect_remap/'
-    enhance_method = 'WOW'
-
+    
+    ## define filtering conditions and do query condition
+    filter = 'Fe XIV'
+    exptime = 3
     filename_list = query_condition(filename_list, filter, exptime)
+
+    ## define image saving directory
+    image_dir = '/Users/ngampoopun/Desktop/ASPIICS_stuff/Plots/CME_Sep9/'
+    ## define enhancement method: options are 'WOW', 'MGN', 'NRGF', or False
+    enhance_method = 'WOW'
 
     for filename in filename_list:
         print('Plotting ASPIICS map:', filename)
-        aspiics_map = read_aspiics_sunpy(filename, occulter=False, rotate=False, enhance_method=enhance_method)
-        # print(f'CRVAL1:{aspiics_map.meta['CRVAL1']} , CRVAL2:{aspiics_map.meta['CRVAL2']}')
-        ### No cropping just pure image
+        aspiics_map = read_aspiics_sunpy(filename, occulter=False, rotate=True, enhance_method=enhance_method, inf_value=0)
+        ### No cropping just pure image (bl, tr = None, None)
         bl, tr = None, None
-        ### LED position
+        ### else, specify the bl and tr, ex. (LED position)
         # bl = SkyCoord(-500*u.arcsec, -500*u.arcsec, frame = aspiics_map.coordinate_frame)
         # tr = SkyCoord(500*u.arcsec, 500*u.arcsec, frame = aspiics_map.coordinate_frame)
-        ##### Plume position
-        # bl = SkyCoord(-500*u.arcsec, -1500*u.arcsec, frame = aspiics_map.coordinate_frame)
-        # tr = SkyCoord(500*u.arcsec, -900*u.arcsec, frame = aspiics_map.coordinate_frame)
         plot_image(aspiics_map, bottom_left=bl, top_right=tr, image_dir=image_dir)
     
 
