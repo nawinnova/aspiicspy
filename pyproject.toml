@@ -1,6 +1,9 @@
 [build-system]
-requires = ["setuptools >= 77.0.3", "setuptools-scm[simple]>=8"]
+requires = ["setuptools >= 77.0.3", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
 
 [project]
 name = "aspiicspy"
