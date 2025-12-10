@@ -25,3 +25,6 @@ def test_read_L2():
     except FileNotFoundError:
         pytest.skip("Sample L2 FITS file not found, skipping read_L2 test.")
 
+if __name__ == "__main__":
+    pytest.main([__file__])
+
