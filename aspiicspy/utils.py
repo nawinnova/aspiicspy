@@ -159,8 +159,19 @@ def fix_sun_center_batch(filelist, savepath=None):
             print('------------------------------------------')
             continue
         if np.abs(suncen_x) > 1500 or np.abs(suncen_y) > 1500:
-            print(f'Sun center is out of bounds, Try longer exposure image.: {flist_sameacq[1]}')
-            suncen_x, suncen_y = find_sun_center(flist_sameacq[1])
+            print(f'Sun center is out of bounds')
+            if len(flist_sameacq) < 2:
+                print('No longer exposure image, Skipping')
+                continue
+            else:
+                print(f'Try longer exposure image.: {flist_sameacq[1]}')
+                suncen_x, suncen_y = find_sun_center(flist_sameacq[1])
+        # last sanity check
+        if np.abs(suncen_x) > 1500 or np.abs(suncen_y) > 1500:
+            print('Sun center is not correct, skipping this acquisition.')
+            print('------------------------------------------')
+            continue
+                
         # apply the same correction to all files with the same acquisition number
         for f in flist_sameacq:
             print(f"Applying sun center correction to file: {f}")
@@ -223,7 +234,7 @@ def combine(long_exptime, short_exptime, threshold = 3500, global_gain_hg=1, sho
 
     return combined
 
-def merge_exposure(imarray, option='simple'):
+def merge_exposure_arr(imarray, option='simple'):
     if option == 'simple':
         im_merge_new = np.where(np.isfinite(imarray[2]), imarray[2], imarray[1])
         im_merge_new = np.where(np.isfinite(im_merge_new), im_merge_new, imarray[0])
@@ -243,10 +254,15 @@ def merge_exposure(imarray, option='simple'):
         mult_1s_10s = find_multiplier(imarray[1], imarray[2], fit_range=fit_range_1s_10s, plot=True)
         # print(mult_1s_10s)
         mult_01s_1s = find_multiplier(imarray[0], imarray[1], fit_range=fit_range_01s_1s, plot=True)
-        # print(mult_01s_1s)
+        # print(mult_01s_1s)s
         im_merge_1s_10s = combine(imarray[2], imarray[1], threshold=threshold_1s_10s, short_exptime_mult=mult_1s_10s)
         im_merge_new = combine(im_merge_1s_10s, imarray[0], threshold=threshold_01s_1s, short_exptime_mult=mult_01s_1s)
 
     return im_merge_new
+
+# def merge_exposure_map(map_arr, savepath, option='simple'):
+#     ## merge 3 exposure from same map.
+
+    
 
     
