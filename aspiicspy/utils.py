@@ -129,16 +129,13 @@ def fix_sun_center(filename, newcrpix_x, newcrpix_y, savepath=None):
 
     return None
 
-def fix_sun_center_batch(filelist, savepath=None):
-    if savepath is not None:
-        os.makedirs(savepath, exist_ok=True)
+def group_acq_num(filelist):
     fname = [os.path.basename(f) for f in filelist]
-    # get acquisition number from filename
     acq = []
     for f in fname:
-        if f.split('_')[-1] == 'v3.fits':
+        if f.split('_')[-1] == 'v03.fits' or f.split('_')[-1] == 'LED.fits':
             acq.append(f.split('_')[4][:-1])
-            print(f"Acquisition number (v3): {f.split('_')[4][:-1]}")
+            print(f"Acquisition number (v03): {f.split('_')[4][:-1]}")
         else:
             acq.append(f.split('_')[3][:-1])
             print(f"Acquisition number (v2): {f.split('_')[3][:-1]}")
@@ -148,6 +145,29 @@ def fix_sun_center_batch(filelist, savepath=None):
         if acq not in maps_same_acq:
             maps_same_acq[acq] = []
         maps_same_acq[acq].append(filelist[i])
+
+    return maps_same_acq
+
+def fix_sun_center_batch(filelist, savepath=None):
+    if savepath is not None:
+        os.makedirs(savepath, exist_ok=True)
+    fname = [os.path.basename(f) for f in filelist]
+    # get acquisition number from filename
+    maps_same_acq = group_acq_num(filelist)
+    # acq = []
+    # for f in fname:
+    #     if f.split('_')[-1] == 'v03.fits':
+    #         acq.append(f.split('_')[4][:-1])
+    #         print(f"Acquisition number (v03): {f.split('_')[4][:-1]}")
+    #     else:
+    #         acq.append(f.split('_')[3][:-1])
+    #         print(f"Acquisition number (v2): {f.split('_')[3][:-1]}")
+    # # group file with same acquisition number together.
+    # maps_same_acq = {}
+    # for i, acq in enumerate(acq):
+    #     if acq not in maps_same_acq:
+    #         maps_same_acq[acq] = []
+    #     maps_same_acq[acq].append(filelist[i])
 
     for j in range(len(maps_same_acq)):
         flist_sameacq = sorted(maps_same_acq[list(maps_same_acq.keys())[j]])
@@ -235,6 +255,8 @@ def combine(long_exptime, short_exptime, threshold = 3500, global_gain_hg=1, sho
     return combined
 
 def merge_exposure_arr(imarray, option='simple'):
+    if len(imarray) != 3:
+        raise ValueError("imarray must contain exactly 3 images")
     if option == 'simple':
         im_merge_new = np.where(np.isfinite(imarray[2]), imarray[2], imarray[1])
         im_merge_new = np.where(np.isfinite(im_merge_new), im_merge_new, imarray[0])
@@ -260,9 +282,32 @@ def merge_exposure_arr(imarray, option='simple'):
 
     return im_merge_new
 
-# def merge_exposure_map(map_arr, savepath, option='simple'):
-#     ## merge 3 exposure from same map.
+def merge_exposure_map_batch(filelist, savepath, option='simple'):
+    if savepath is not None:
+        os.makedirs(savepath, exist_ok=True)
+    fname = [os.path.basename(f) for f in filelist]
+    # get acquisition number from filename
+    maps_same_acq = group_acq_num(filelist)
 
-    
+    for j in range(len(maps_same_acq)):
+        imarray = []
+        hdrarray = []
+        flist_sameacq = sorted(maps_same_acq[list(maps_same_acq.keys())[j]])
+        for f in flist_sameacq:
+            with fits.open(f, do_not_scale_image_data=True) as hdul:             
+                imagedata = hdul[0].data
+                header = hdul[0].header
+            imarray.append(imagedata)
+            hdrarray.append(header)
 
-    
+            im_merge_new = merge_exposure_arr(imarray, option=option)
+            hdrref = hdrarray[1]
+            filename = hdrref['FILENAME']
+            hdrref['HISTORY'] = 'Merged exposure map created from: ' + ', '.join(flist_sameacq)
+
+            # save the merged image with a new name
+            new_filename_base = filename.replace('.fits', '_merged.fits')
+            new_filename = os.path.join(os.path.dirname(savepath), new_filename_base)
+            hdu = fits.PrimaryHDU(data=im_merge_new, header=hdrref)
+            hdu.writeto(new_filename, overwrite=True)
+            print("Merged exposure map saved as:", new_filename)
